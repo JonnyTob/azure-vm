@@ -1,0 +1,16 @@
+/bin/
+/node_modules/
+# Node / TypeScript
+node_modules/
+dist/
+out/
+*.log
+
+# Pulumi
+.pulumi/
+.pulumi.stacks.yaml
+.pulumi-local/
+Pulumi.*.yaml  # keep Pulumi.yaml; ignore stack secrets if you prefer to store elsewhere
+
+# VS Code
+.vscode/
