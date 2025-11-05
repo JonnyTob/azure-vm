@@ -1,5 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as azure_native from "@pulumi/azure-native";
+import * as configuration from "./configuration";
+
 // import { ResourceGroup } from "@pulumi/azure-native/resources";
 
 const vm_name = "vm-mgmt-linux-jt-new";
@@ -16,7 +18,7 @@ const subnetId = `/subscriptions/${subscriptionId}/resourceGroups/${netRg}` +
 const VMadminUsername = "int-admin";
 // paste your *public* SSH key string here
 const sshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFCXOrEr8rroKFzRHy+Xz/MDaR4mMZtqH419vftxoIqg admin_vm";
-
+const tags = configuration.getTags();
 
 const rg_resourcegroup = new azure_native.resources.ResourceGroup("int-apim-poc-vm-jt", {
     resourceGroupName: rg_name,
@@ -33,6 +35,7 @@ const subnet = azure_native.network.getSubnetOutput({
 const nic = new azure_native.network.NetworkInterface("vm-nic", {
   resourceGroupName: rg_resourcegroup.name,
   location: rg_resourcegroup.location,
+  tags: tags,
   ipConfigurations: [{
     name: "vm_nic_ipconfig1",
     privateIPAllocationMethod: "Dynamic",
@@ -115,6 +118,7 @@ const vm_mgmt_linux = new azure_native.compute.VirtualMachine("vm-mgmt-linux", {
             osType: azure_native.compute.OperatingSystemTypes.Linux,
         },
     },
+    tags: tags,
 });
 
 
