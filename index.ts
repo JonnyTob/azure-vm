@@ -1,11 +1,18 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as azure_native from "@pulumi/azure-native";
 import * as configuration from "./configuration";
-
+import * as fs from "fs";
+import * as certificates from "./certificates";
+import * as path from "path";
 // import { ResourceGroup } from "@pulumi/azure-native/resources";
 
-const vm_name = "vm-mgmt-linux-jt-new";
-const rg_name = "int-apim-poc-vm-jt_new";
+const vm_name = "vm-mgmt-linux-poc";
+const rg_name = "int-apim-poc-vm";
+const VMadminUsername = "int-admin";
+const scriptPath = "./scripts/api_persontjenesten.sh";
+
+const scriptText = fs.readFileSync(scriptPath, "utf8");
+const scriptTextEncoded = scriptText.replace(/'/g, `'\\''`);
 
 // Theese must be fetched from exisiting code
 const subscriptionId = "fdf0eb5e-de6d-4533-809d-a6a18426edb8";
@@ -15,7 +22,7 @@ const subnetName = "int-apim-poc-nwe-apim-subnet-5588";
 const subnetId = `/subscriptions/${subscriptionId}/resourceGroups/${netRg}` +
   `/providers/Microsoft.Network/virtualNetworks/${vnetName}/subnets/${subnetName}`;
 
-const VMadminUsername = "int-admin";
+
 // paste your *public* SSH key string here
 const sshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFCXOrEr8rroKFzRHy+Xz/MDaR4mMZtqH419vftxoIqg admin_vm";
 const tags = configuration.getTags();
@@ -32,12 +39,12 @@ const subnet = azure_native.network.getSubnetOutput({
 });
 
 // Use the looked-up subnet.id when creating the NIC
-const nic = new azure_native.network.NetworkInterface("vm-nic", {
+const nic = new azure_native.network.NetworkInterface(`${vm_name}-nic`, {
   resourceGroupName: rg_resourcegroup.name,
   location: rg_resourcegroup.location,
   tags: tags,
   ipConfigurations: [{
-    name: "vm_nic_ipconfig1",
+    name: `${vm_name}_ipconfig1`,
     privateIPAllocationMethod: "Dynamic",
     subnet: {
          id: subnetId 
@@ -121,8 +128,17 @@ const vm_mgmt_linux = new azure_native.compute.VirtualMachine("vm-mgmt-linux", {
     tags: tags,
 });
 
+// Install VM extension after VM is created
+const aadSsh = new azure_native.compute.VirtualMachineExtension("aad-ssh-login", {
+    vmName: vm_mgmt_linux.name,
+    resourceGroupName: rg_resourcegroup.name,
+    location: rg_resourcegroup.location,
+    publisher: "Microsoft.Azure.ActiveDirectory",
+    type: "AADSSHLoginForLinux",
+    typeHandlerVersion: "1.0",
+});
 
-// Install add-ons
+// Install add-ons, copy scripts, copy CA certs, etc.
 const installTools = new azure_native.compute.VirtualMachineExtension("install-tools", {
     vmName: vm_mgmt_linux.name,
     resourceGroupName: rg_resourcegroup.name,
@@ -146,19 +162,18 @@ const installTools = new azure_native.compute.VirtualMachineExtension("install-t
             sudo tee /etc/apt/sources.list.d/azure-cli.list
         sudo apt-get update
         sudo apt-get install -y azure-cli
+        printf '%s' '${scriptTextEncoded}' > /home/${VMadminUsername}/${path.basename(scriptPath)}
+        chown ${VMadminUsername}:${VMadminUsername} /home/${VMadminUsername}/${path.basename(scriptPath)}
+        chmod 0755 /home/${VMadminUsername}/${path.basename(scriptPath)}
+        echo "${certificates.helseNordRootCaCertBase64}" | sudo tee /usr/local/share/ca-certificates/helse_nord_root_ca.crt
+        echo "${certificates.helseNordIssuingCaCertificateBase64}" | sudo tee /usr/local/share/ca-certificates/helse_nord_issuing_ca_01.crt
+        sudo update-ca-certificates
         `,
     },
 });
 
-// Install VM extension after VM is created
-const aadSsh = new azure_native.compute.VirtualMachineExtension("aad-ssh-login", {
-    vmName: vm_mgmt_linux.name,
-    resourceGroupName: rg_resourcegroup.name,
-    location: rg_resourcegroup.location,
-    publisher: "Microsoft.Azure.ActiveDirectory",
-    type: "AADSSHLoginForLinux",
-    typeHandlerVersion: "1.0",
-});
+
+// TO-DO Need to add HNIKT CA certs to trusted store in the VM - must be done vis script extension above
 
 export const vmId = vm_mgmt_linux.id;
 export const nicId = nic.id;
