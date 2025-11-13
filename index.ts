@@ -9,12 +9,13 @@ import * as path from "path";
 const vm_name = "vm-mgmt-linux-poc";
 const rg_name = "int-apim-poc-vm";
 const VMadminUsername = "int-admin";
-const scriptPath = "./scripts/api_persontjenesten.sh";
-
+// Pre made script for testing Persontjenesten API
+const scriptPath = "./scripts/api_persontjenesten.sh";      
 const scriptText = fs.readFileSync(scriptPath, "utf8");
+// Prepare script for embedding in bash command
 const scriptTextEncoded = scriptText.replace(/'/g, `'\\''`);
 
-// Theese must be fetched from exisiting code
+// TO-DO. Theese should be fetched from exisiting code
 const subscriptionId = "fdf0eb5e-de6d-4533-809d-a6a18426edb8";
 const netRg = "int-apim-poc-nwe-main-rg-4203";           
 const vnetName = "int-apim-poc-nwe-apim-vnet-d990";
@@ -23,10 +24,13 @@ const subnetId = `/subscriptions/${subscriptionId}/resourceGroups/${netRg}` +
   `/providers/Microsoft.Network/virtualNetworks/${vnetName}/subnets/${subnetName}`;
 
 
-// paste your *public* SSH key string here
+// paste your *public* SSH key string here (PUBLIC ONLY!)
 const sshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFCXOrEr8rroKFzRHy+Xz/MDaR4mMZtqH419vftxoIqg admin_vm";
 const tags = configuration.getTags();
 
+//
+// Provisioning of resources
+//
 const rg_resourcegroup = new azure_native.resources.ResourceGroup("int-apim-poc-vm-jt", {
     resourceGroupName: rg_name,
     location: "norwayeast",
@@ -49,7 +53,8 @@ const nic = new azure_native.network.NetworkInterface(`${vm_name}-nic`, {
     subnet: {
          id: subnetId 
     },    
-    // publicIPAddress: { id: pip.id }, // optional
+    // optional
+    // publicIPAddress: { id: pip.id },                     
   }],
 });
 
@@ -114,7 +119,7 @@ const vm_mgmt_linux = new azure_native.compute.VirtualMachine("vm-mgmt-linux", {
             version: "latest",
         },
         osDisk: {
-            name: `${vm_name}_osdisk`,         
+            name: `${vm_name}_OSdisk`,         
             managedDisk: {
                 storageAccountType: azure_native.compute.StorageAccountTypes.StandardSSD_LRS,
             },
@@ -147,7 +152,7 @@ const installTools = new azure_native.compute.VirtualMachineExtension("install-t
     type: "customScript",
     typeHandlerVersion: "2.1",
     settings: {
-        // Install Azure CLI and jq
+        // Install Azure CLI, CA certs, copy script to VM
         commandToExecute: `
         #!/bin/bash
         set -e
